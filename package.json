@@ -1,16 +1,15 @@
 {
   "name": "nutria",
   "version": "1.0.0",
-  "description": "IA para Nutricionista com WhatsApp, OpenAI e Supabase",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "node-fetch": "^3.3.2",
-    "@supabase/supabase-js": "^2.10.2",
-    "openai": "^4.10.0"
+    "node-fetch": "^3.3.1",
+    "openai": "^4.30.0",
+    "dotenv": "^16.3.1",
+    "@supabase/supabase-js": "^2.7.0"
   }
 }
