@@ -1,37 +1,48 @@
-require('dotenv').config();
-const express = require('express');
-const fetch = require('node-fetch');
-const { createClient } = require('@supabase/supabase-js');
-const { Configuration, OpenAIApi } = require('openai');
+// Carrega as variáveis de ambiente do .env
+require("dotenv").config();
+
+const express = require("express");
+const OpenAI = require("openai");
 
 const app = express();
-app.use(express.json());
+app.use(express.json()); // para conseguir receber JSON no body
 
-// Configurações do Supabase
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-
-// Configurações do OpenAI
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY
-});
-const openai = new OpenAIApi(configuration);
-
-// Exemplo de webhook para receber mensagens do WhatsApp
-app.post('/webhook', async (req, res) => {
-  const data = req.body;
-  console.log('Mensagem recebida:', data);
-
-  // Aqui você pode adicionar lógica para enviar a mensagem para OpenAI
-  // e salvar dados no Supabase
-
-  res.sendStatus(200);
+// Instanciando OpenAI com a chave do .env
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Rota de teste simples
-app.get('/', (req, res) => {
-  res.send('Servidor NutriAI rodando!');
+// Rota de teste
+app.get("/", (req, res) => {
+  res.send("Servidor rodando!");
+});
+
+// Exemplo de webhook para chat
+app.post("/webhook", async (req, res) => {
+  try {
+    const userMessage = req.body.message || "Olá";
+    
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    const botMessage = response.choices[0].message.content;
+
+    res.json({ reply: botMessage });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao processar a requisição." });
+  }
+});
+
+// Rota Health Check do Render
+app.get("/healthz", (req, res) => {
+  res.send("OK");
 });
 
 // Porta do servidor
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
