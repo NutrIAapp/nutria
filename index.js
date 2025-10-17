@@ -1,11 +1,31 @@
-// Rota para receber mensagens do WhatsApp
+import express from "express";
+import fetch from "node-fetch";
+import dotenv from "dotenv";
+import OpenAI from "openai";
+
+// Carrega variáveis de ambiente do Render ou .env
+dotenv.config();
+
+const app = express();
+app.use(express.json()); // necessário para interpretar JSON no corpo da requisição
+
+// Configuração do OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Rota de teste
+app.get("/", (req, res) => {
+  res.send("Servidor rodando!");
+});
+
+// Rota webhook do WhatsApp
 app.post("/webhook", async (req, res) => {
   try {
-    const data = req.body; // dados enviados pelo Wasender
+    const data = req.body; 
     console.log("Mensagem recebida:", data);
 
-    // Extraia número e mensagem
-    const from = data.from; // número de quem enviou
+    const from = data.from; // número do remetente
     const mensagem = data.body; // texto enviado
 
     // Chama a IA
@@ -24,14 +44,20 @@ app.post("/webhook", async (req, res) => {
         Authorization: `Bearer ${process.env.WASENDER_TOKEN}`
       },
       body: JSON.stringify({
-        number: from, // para quem enviar
+        number: from,
         message: respostaIA
       })
     });
 
-    res.sendStatus(200); // envia 200 para confirmar recebimento
+    res.sendStatus(200);
   } catch (err) {
     console.error(err);
     res.sendStatus(500);
   }
+});
+
+// Porta do servidor
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
