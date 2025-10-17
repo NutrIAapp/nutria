@@ -1,48 +1,39 @@
-// Carrega as variáveis de ambiente do .env
-require("dotenv").config();
+import express from "express";
+import dotenv from "dotenv";
+import OpenAI from "openai";
 
-const express = require("express");
-const OpenAI = require("openai");
+dotenv.config(); // carrega as variáveis do .env
 
 const app = express();
-app.use(express.json()); // para conseguir receber JSON no body
+app.use(express.json()); // permite receber JSON
 
-// Instanciando OpenAI com a chave do .env
+// Configura a OpenAI
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY
 });
 
-// Rota de teste
-app.get("/", (req, res) => {
-  res.send("Servidor rodando!");
-});
-
-// Exemplo de webhook para chat
+// Rota do webhook
 app.post("/webhook", async (req, res) => {
+  const { mensagem } = req.body; // pega a mensagem enviada
+
   try {
-    const userMessage = req.body.message || "Olá";
-    
+    // Envia a mensagem para a OpenAI
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: userMessage }],
+      model: "gpt-4",
+      messages: [{ role: "user", content: mensagem }]
     });
 
-    const botMessage = response.choices[0].message.content;
-
-    res.json({ reply: botMessage });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Erro ao processar a requisição." });
+    // Retorna a resposta da IA
+    res.json({
+      resposta: response.choices[0].message.content
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Falha na IA" });
   }
 });
 
-// Rota Health Check do Render
-app.get("/healthz", (req, res) => {
-  res.send("OK");
-});
-
-// Porta do servidor
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+// Inicializa o servidor
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Servidor rodando!");
 });
