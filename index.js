@@ -1,51 +1,58 @@
-import express from "express";
-import axios from "axios";
-import dotenv from "dotenv";
-import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
+// Carrega variáveis do Render Secret File
+require('dotenv').config({ path: '/etc/secrets/.env' });
 
-dotenv.config();
+const express = require('express');
+const fetch = require('node-fetch');
+const { createClient } = require('@supabase/supabase-js');
+const { Configuration, OpenAIApi } = require('openai');
 
 const app = express();
-app.use(express.json());
+app.use(express.json()); // Para receber JSON
 
-// 🔑 Conexões
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const port = process.env.PORT || 3000;
 
-// 🧠 Função para gerar resposta da IA
-async function gerarResposta(mensagem) {
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: "Você é um nutricionista virtual que cria dietas e orientações de forma personalizada e saudável." },
-      { role: "user", content: mensagem }
-    ]
-  });
-  return completion.choices[0].message.content;
-}
+// Configuração OpenAI
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
 
-// 📲 Receber mensagem do WhatsApp
-app.post("/webhook", async (req, res) => {
-  const { from, message } = req.body;
+// Configuração Supabase
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-  if (!message) return res.sendStatus(400);
-
-  const resposta = await gerarResposta(message);
-
-  // Salvar conversa no Supabase
-  await supabase.from("conversas").insert([{ numero: from, mensagem: message, resposta }]);
-
-  // Enviar resposta pelo WhatsApp (via WaSenderAPI)
-  await axios.post(`${process.env.WASENDER_API_URL}/send-message`, {
-    token: process.env.WASENDER_TOKEN,
-    phone: from,
-    message: resposta
-  });
-
-  res.sendStatus(200);
+// Health check
+app.get('/healthz', (req, res) => {
+  res.send('OK');
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log("🚀 Servidor rodando...");
+// Exemplo de endpoint que receberia dados do WhatsApp (via WaSender webhook)
+app.post('/webhook', async (req, res) => {
+  const messageData = req.body;
+
+  // Aqui você pode salvar no Supabase
+  // await supabase.from('messages').insert([{ data: messageData }]);
+
+  // Exemplo de resposta automática usando OpenAI
+  const response = await openai.createChatCompletion({
+    model: "gpt-4",
+    messages: [
+      { role: "system", content: "Você é um nutricionista virtual." },
+      { role: "user", content: "Cliente: " + JSON.stringify(messageData) }
+    ],
+  });
+
+  const reply = response.data.choices[0].message.content;
+  console.log("Resposta da IA:", reply);
+
+  // Aqui você enviaria a resposta via WaSender API
+  // fetch(process.env.WASENDER_API_URL + '/send-message', { ... })
+
+  res.status(200).send({ status: 'ok', reply });
+});
+
+app.listen(port, () => {
+  console.log(`Servidor rodando na porta ${port}`);
 });
