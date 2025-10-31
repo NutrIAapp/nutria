@@ -3,61 +3,67 @@ import fetch from "node-fetch";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 
-// Carrega variáveis de ambiente do Render ou .env
 dotenv.config();
-
 const app = express();
-app.use(express.json()); // necessário para interpretar JSON no corpo da requisição
+app.use(express.json());
 
-// Configuração do OpenAI
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Rota de teste
-app.get("/", (req, res) => {
-  res.send("Servidor rodando!");
-});
+const WASENDER_API_URL = process.env.WASENDER_API_URL;
+const WASENDER_TOKEN = process.env.WASENDER_TOKEN;
 
-// Rota webhook do WhatsApp
+// ✅ Webhook que recebe mensagens do WhatsApp
 app.post("/webhook", async (req, res) => {
   try {
-    const data = req.body; 
-    console.log("Mensagem recebida:", data);
+    const body = req.body;
 
-    const from = data.from; // número do remetente
-    const mensagem = data.body; // texto enviado
+    // Exibe no console o que chegou
+    console.log("Mensagem recebida:", body);
 
-    // Chama a IA
+    const message = body?.message?.text;
+    const phone = body?.message?.from;
+
+    if (!message || !phone) {
+      return res.sendStatus(200);
+    }
+
+    // Envia mensagem para o ChatGPT
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [{ role: "user", content: mensagem }]
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Você é um assistente chamado NutrIA, especializado em nutrição e saúde." },
+        { role: "user", content: message },
+      ],
     });
 
-    const respostaIA = response.choices[0].message.content;
+    const reply = response.choices[0].message.content;
 
-    // Envia a resposta pelo Wasender
-    await fetch(`${process.env.WASENDER_API_URL}/sendMessage`, {
+    // Envia resposta no WhatsApp via WasenderAPI
+    await fetch(`${WASENDER_API_URL}/api/send-message`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.WASENDER_TOKEN}`
+        Authorization: `Bearer ${WASENDER_TOKEN}`,
       },
       body: JSON.stringify({
-        number: from,
-        message: respostaIA
-      })
+        number: phone,
+        message: reply,
+      }),
     });
 
+    console.log("Mensagem enviada para o WhatsApp:", reply);
     res.sendStatus(200);
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error("Erro no webhook:", error);
     res.sendStatus(500);
   }
 });
 
-// Porta do servidor
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+// ✅ Rota padrão do servidor
+app.get("/", (req, res) => {
+  res.send("Servidor rodando!");
 });
+
+app.listen(3000, () => console.log("🚀 Servidor rodando na porta 3000"));
