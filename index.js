@@ -1,5 +1,4 @@
 import express from "express";
-import bodyParser from "body-parser";
 import axios from "axios";
 import dotenv from "dotenv";
 import OpenAI from "openai";
@@ -7,68 +6,72 @@ import OpenAI from "openai";
 dotenv.config();
 
 const app = express();
-app.use(bodyParser.json());
+app.use(express.json());
 
-// Inicializa a OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// ✅ rota principal para o Render testar se o app está online
+app.get("/", (req, res) => {
+  res.send("Servidor da NutrIA está online ✅");
 });
 
-const WASENDER_API = process.env.WASENDER_API;
-const WASENDER_API_KEY = process.env.WASENDER_API_KEY;
-
-// Webhook - recebe mensagens do WhatsApp
+// ✅ webhook que recebe as mensagens do WhatsApp via WasenderAI
 app.post("/webhook", async (req, res) => {
   try {
-    console.log("Mensagem recebida:", req.body);
+    const data = req.body;
+    console.log("📩 Mensagem recebida:", data);
 
-    // Extrai a mensagem do Wasender
-    const messageData = req.body;
-    const from = messageData.from;
-    const message = messageData.message?.text || "";
+    // dados da mensagem recebida
+    const message = data?.message || "";
+    const phone = data?.phone || "";
 
-    if (!from || !message) {
-      return res.status(200).send("Sem mensagem de texto");
+    if (!message || !phone) {
+      console.log("❌ Dados incompletos recebidos do webhook.");
+      return res.status(400).send("Dados inválidos.");
     }
 
-    // Gera resposta da IA (modelo GPT-4-mini)
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    // ✅ cria resposta com OpenAI
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content: "Você é uma assistente inteligente e simpática, que responde de forma natural e útil.",
+          content:
+            "Você é a NutrIA, uma assistente de nutrição inteligente e simpática. Responda de forma clara, educada e objetiva.",
         },
-        {
-          role: "user",
-          content: message,
-        },
+        { role: "user", content: message },
       ],
     });
 
-    const reply = response.choices[0].message.content;
-    console.log("Resposta da IA:", reply);
+    const resposta = completion.choices[0].message.content;
+    console.log("🤖 Resposta da IA:", resposta);
 
-    // Envia resposta de volta pro WhatsApp via Wasender
+    // ✅ envia resposta de volta via WasenderAI
     await axios.post(
-      `${WASENDER_API}/api/sendText`,
+      `${process.env.WASENDER_API_URL}/api/sendText`,
       {
-        to: from,
-        text: reply,
+        number: phone,
+        text: resposta,
       },
       {
         headers: {
-          Authorization: `Bearer ${WASENDER_API_KEY}`,
+          Authorization: `Bearer ${process.env.WASENDER_TOKEN}`,
         },
       }
     );
 
-    res.status(200).send("Mensagem processada com sucesso");
+    console.log("✅ Mensagem enviada para o WhatsApp com sucesso!");
+    res.status(200).send("OK");
   } catch (error) {
-    console.error("Erro ao processar webhook:", error);
-    res.status(500).send("Erro no servidor");
+    console.error("❌ Erro no webhook:", error.message);
+    res.status(500).send("Erro interno no servidor");
   }
 });
 
-// Inicializa servidor
-app.listen(3000, () => console.log("🤖 Servidor rodando na porta 3000"));
+// ✅ inicia o servidor na porta do Render ou 3000 localmente
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🤖 Servidor rodando na porta ${PORT}`);
+});
