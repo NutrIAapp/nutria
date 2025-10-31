@@ -1,69 +1,74 @@
 import express from "express";
-import fetch from "node-fetch";
+import bodyParser from "body-parser";
+import axios from "axios";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 
 dotenv.config();
-const app = express();
-app.use(express.json());
 
+const app = express();
+app.use(bodyParser.json());
+
+// Inicializa a OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const WASENDER_API_URL = process.env.WASENDER_API_URL;
-const WASENDER_TOKEN = process.env.WASENDER_TOKEN;
+const WASENDER_API = process.env.WASENDER_API;
+const WASENDER_API_KEY = process.env.WASENDER_API_KEY;
 
-// ✅ Webhook que recebe mensagens do WhatsApp
+// Webhook - recebe mensagens do WhatsApp
 app.post("/webhook", async (req, res) => {
   try {
-    const body = req.body;
+    console.log("Mensagem recebida:", req.body);
 
-    // Exibe no console o que chegou
-    console.log("Mensagem recebida:", body);
+    // Extrai a mensagem do Wasender
+    const messageData = req.body;
+    const from = messageData.from;
+    const message = messageData.message?.text || "";
 
-    const message = body?.message?.text;
-    const phone = body?.message?.from;
-
-    if (!message || !phone) {
-      return res.sendStatus(200);
+    if (!from || !message) {
+      return res.status(200).send("Sem mensagem de texto");
     }
 
-    // Envia mensagem para o ChatGPT
+    // Gera resposta da IA (modelo GPT-4-mini)
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Você é um assistente chamado NutrIA, especializado em nutrição e saúde." },
-        { role: "user", content: message },
+        {
+          role: "system",
+          content: "Você é uma assistente inteligente e simpática, que responde de forma natural e útil.",
+        },
+        {
+          role: "user",
+          content: message,
+        },
       ],
     });
 
     const reply = response.choices[0].message.content;
+    console.log("Resposta da IA:", reply);
 
-    // Envia resposta no WhatsApp via WasenderAPI
-    await fetch(`${WASENDER_API_URL}/api/send-message`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${WASENDER_TOKEN}`,
+    // Envia resposta de volta pro WhatsApp via Wasender
+    await axios.post(
+      `${WASENDER_API}/api/sendText`,
+      {
+        to: from,
+        text: reply,
       },
-      body: JSON.stringify({
-        number: phone,
-        message: reply,
-      }),
-    });
+      {
+        headers: {
+          Authorization: `Bearer ${WASENDER_API_KEY}`,
+        },
+      }
+    );
 
-    console.log("Mensagem enviada para o WhatsApp:", reply);
-    res.sendStatus(200);
+    res.status(200).send("Mensagem processada com sucesso");
   } catch (error) {
-    console.error("Erro no webhook:", error);
-    res.sendStatus(500);
+    console.error("Erro ao processar webhook:", error);
+    res.status(500).send("Erro no servidor");
   }
 });
 
-// ✅ Rota padrão do servidor
-app.get("/", (req, res) => {
-  res.send("Servidor rodando!");
-});
-
-app.listen(3000, () => console.log("🚀 Servidor rodando na porta 3000"));
+// Inicializa servidor
+app.listen(3000, () => console.log("🤖 Servidor rodando na porta 3000"));
